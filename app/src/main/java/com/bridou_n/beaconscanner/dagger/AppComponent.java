@@ -11,6 +11,7 @@ import dagger.Component;
  */
 @Singleton
 @Component(modules = {
+        ContextModule.class,
         DatabaseModule.class,
         BluetoothModule.class,
         EventModule.class,

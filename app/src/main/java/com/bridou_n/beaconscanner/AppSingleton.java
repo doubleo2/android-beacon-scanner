@@ -5,6 +5,7 @@ import android.app.Application;
 import com.bridou_n.beaconscanner.dagger.AnimationModule;
 import com.bridou_n.beaconscanner.dagger.AppComponent;
 import com.bridou_n.beaconscanner.dagger.BluetoothModule;
+import com.bridou_n.beaconscanner.dagger.ContextModule;
 import com.bridou_n.beaconscanner.dagger.DaggerAppComponent;
 import com.bridou_n.beaconscanner.dagger.DatabaseModule;
 import com.bridou_n.beaconscanner.dagger.EventModule;
@@ -28,10 +29,11 @@ public class AppSingleton extends Application {
         Realm.setDefaultConfiguration(config);
 
         component = DaggerAppComponent.builder()
+                        .contextModule(new ContextModule(this))
                         .databaseModule(new DatabaseModule())
-                        .bluetoothModule(new BluetoothModule(this))
+                        .bluetoothModule(new BluetoothModule())
                         .eventModule(new EventModule())
-                        .animationModule(new AnimationModule(this))
+                        .animationModule(new AnimationModule())
                         .build();
     }
 
