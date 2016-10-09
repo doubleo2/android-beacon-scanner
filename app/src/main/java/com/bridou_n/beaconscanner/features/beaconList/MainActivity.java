@@ -67,7 +67,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
     private static final int RC_SETTINGS_SCREEN = 2;
     private static final String PREF_TUTO_KEY = "PREF_TUTO_KEY";
 
-    private BroadcastReceiver receiver;
+    private BroadcastReceiver btStateReceiver;
     private Subscription sub = null;
 
     @Inject @Named("fab_search") Animation rotate;
@@ -126,7 +126,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
                 });
 
         // Register a broadcast receiver for bluetooth state changes
-        receiver = new BroadcastReceiver() {
+        btStateReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 String action = intent.getAction();
@@ -137,7 +137,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
             }
         };
 
-        registerReceiver(receiver, new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED));
+        registerReceiver(btStateReceiver, new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED));
 
         if (!getPreferences(Context.MODE_PRIVATE).getBoolean(PREF_TUTO_KEY, false)) {
             showTutorial();
@@ -387,6 +387,6 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
             sub.unsubscribe();
         }
         realm.close();
-        unregisterReceiver(receiver);
+        unregisterReceiver(btStateReceiver);
     }
 }
