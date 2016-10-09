@@ -2,10 +2,8 @@ package com.bridou_n.beaconscanner.features.beaconList;
 
 import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.RemoteException;
@@ -32,6 +30,7 @@ import com.bridou_n.beaconscanner.R;
 import com.bridou_n.beaconscanner.events.Events;
 import com.bridou_n.beaconscanner.events.RxBus;
 import com.bridou_n.beaconscanner.models.BeaconSaved;
+import com.bridou_n.beaconscanner.utils.BluetoothManager;
 import com.bridou_n.beaconscanner.utils.DividerItemDecoration;
 import com.getkeepsafe.taptargetview.TapTarget;
 import com.getkeepsafe.taptargetview.TapTargetView;
@@ -67,11 +66,11 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
     private static final int RC_SETTINGS_SCREEN = 2;
     private static final String PREF_TUTO_KEY = "PREF_TUTO_KEY";
 
-    private BroadcastReceiver btStateReceiver;
     private Subscription sub = null;
+    private Subscription btSub = null;
 
     @Inject @Named("fab_search") Animation rotate;
-    @Inject BluetoothAdapter bluetoothAdapter;
+    @Inject BluetoothManager bluetooth;
     @Inject BeaconManager beaconManager;
     @Inject RxBus rxBus;
     @Inject Realm realm;
@@ -116,28 +115,18 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
         sub = rxBus.toObserverable()
                 .observeOn(AndroidSchedulers.mainThread()) // We use this so we use the realm on the good thread & we can make UI changes
                 .subscribe(e -> {
-                    if (e instanceof Events.BluetoothState) {
-                        bluetoothStateChanged(((Events.BluetoothState) e).getState());
-                    }
-
                     if (e instanceof Events.RangeBeacon) {
                         updateUiWithBeaconsArround(((Events.RangeBeacon) e).getBeacons());
                     }
                 });
 
-        // Register a broadcast receiver for bluetooth state changes
-        btStateReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                String action = intent.getAction();
-
-                if (action.equals(BluetoothAdapter.ACTION_STATE_CHANGED)) {
-                    rxBus.send(new Events.BluetoothState(intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)));
-                }
-            }
-        };
-
-        registerReceiver(btStateReceiver, new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED));
+        btSub = bluetooth.observe()
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(e -> {
+                    if (e instanceof Events.BluetoothState) {
+                        bluetoothStateChanged(((Events.BluetoothState) e).getState());
+                    }
+                });
 
         if (!getPreferences(Context.MODE_PRIVATE).getBoolean(PREF_TUTO_KEY, false)) {
             showTutorial();
@@ -153,9 +142,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
                     @Override
                     public void onTargetClick(TapTargetView view) {
                         super.onTargetClick(view);
-                        if (bluetoothAdapter != null && !bluetoothAdapter.isEnabled()) { // If the bluetooth was off, turning it on
-                            bluetoothAdapter.enable();
-                        }
+                        bluetooth.enable();
                         TapTargetView.showFor(_this,
                                 TapTarget.forView(scanFab, getString(R.string.feature_scan_title), getString(R.string.feature_scan_content)).tintTarget(false).cancelable(false).dimColor(R.color.primaryText).drawShadow(true),
                                 new TapTargetView.Listener() {
@@ -181,9 +168,6 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
     @Override
     protected void onResume() {
         super.onResume();
-        if (bluetoothAdapter != null) {
-            rxBus.send(new Events.BluetoothState(bluetoothAdapter.getState()));
-        }
     }
 
     private void updateUiWithBeaconsArround(Collection<Beacon> beacons) {
@@ -277,7 +261,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
     @OnClick(R.id.scan_fab)
     public void startStopScan() {
         if (!beaconManager.isBound(this)) {
-            if (bluetoothAdapter != null && !bluetoothAdapter.isEnabled()) {
+            if (!bluetooth.isEnabled()) {
                 Snackbar.make(rootView, getString(R.string.enable_bluetooth_to_start_scanning), Snackbar.LENGTH_LONG).show();
                 return ;
             }
@@ -347,7 +331,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.main_menu, menu);
-        if (bluetoothAdapter != null && !bluetoothAdapter.isEnabled()) {
+        if (!bluetooth.isEnabled()) {
             menu.getItem(1).setIcon(R.mipmap.ic_bluetooth_disabled_white_24dp);
         }
         return true;
@@ -357,11 +341,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
     public boolean onOptionsItemSelected(MenuItem item) {
         int id = item.getItemId();
         if (id == R.id.action_bluetooth) {
-            if (bluetoothAdapter != null && !bluetoothAdapter.isEnabled()) {
-                bluetoothAdapter.enable();
-            } else if (bluetoothAdapter != null && bluetoothAdapter.isEnabled()) {
-                bluetoothAdapter.disable();
-            }
+            bluetooth.toggle();
             return true;
         }
         if (id == R.id.action_clear) {
@@ -386,7 +366,9 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
         if (sub != null && !sub.isUnsubscribed()) {
             sub.unsubscribe();
         }
+        if (btSub != null && !btSub.isUnsubscribed()) {
+            btSub.unsubscribe();
+        }
         realm.close();
-        unregisterReceiver(btStateReceiver);
     }
 }
